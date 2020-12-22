@@ -913,7 +913,7 @@ public class DFA {
   void GenComment(Comment com, int i) {
     gen.println();
     if(generateKotlinCode) {
-      gen.print  ("\tfun Comment" + i + "(): Boolean "); gen.println("{");
+      gen.print  ("\tprivate fun Comment" + i + "(): Boolean "); gen.println("{");
       gen.println("\t\tvar level = 1; val pos0 = pos; val line0 = line; val col0 = col; val charPos0 = charPos");
     } else {
       gen.print  ("\tboolean Comment" + i + "() "); gen.println("{");
@@ -1064,7 +1064,7 @@ public class DFA {
     g.CopyFramePart("-->declarations");
     if(generateKotlinCode) {
       if (ignoreCase)
-        gen.print("\tvar valCh: Char = '\0';       // current input character (for token.val)");
+        gen.print("\tprivate var valCh: Char = '\0';       // current input character (for token.val)");
       g.CopyFramePart("-->companion");
       gen.println("\t\tconst val maxT: Int = " + (tab.terminals.size() - 1) + ";");
       gen.println("\t\tconst val noSym: Int = " + tab.noSym.n + ";");

@@ -282,17 +282,17 @@ class StartStates {
 //-----------------------------------------------------------------------------------
 class Scanner {
     var buffer: Buffer // scanner buffer
-    var t = Token() // current token
-    var ch = 0 // current input character
-    var pos = 0 // byte position of current character
-    var charPos = 0 // position by unicode characters starting with 0
-    var col = 0 // column number of current character
-    var line = 0 // line number of current character
-    var oldEols = 0 // EOLs that appeared in a comment
-    var tokens: Token? = null // list of tokens already peeked (first token is a dummy)
-    var pt: Token? = null // current peek token
-    var tval = CharArray(16) // token text used in NextToken(), dynamically enlarged
-    var tlen = 0 // length of current token
+    private var t = Token() // current token
+    private var ch = 0 // current input character
+    private var pos = 0 // byte position of current character
+    private var charPos = 0 // position by unicode characters starting with 0
+    private var col = 0 // column number of current character
+    private var line = 0 // line number of current character
+    private var oldEols = 0 // EOLs that appeared in a comment
+    private var tokens: Token? = null // list of tokens already peeked (first token is a dummy)
+    private var pt: Token? = null // current peek token
+    private var tval = CharArray(16) // token text used in NextToken(), dynamically enlarged
+    private var tlen = 0 // length of current token
 -->declarations
     companion object {
         const val EOL = '\n'
@@ -316,7 +316,7 @@ class Scanner {
         Init()
     }
 
-    fun Init() {
+    private fun Init() {
         pos = -1
         line = 1
         col = 0
@@ -340,7 +340,7 @@ class Scanner {
         pt = tokens // first token is a dummy
     }
 
-    fun NextCh() {
+    private fun NextCh() {
         if (oldEols > 0) {
             ch = EOL.toInt()
             oldEols--
@@ -361,7 +361,7 @@ class Scanner {
 -->casing
     }
 
-    fun AddCh() {
+    private fun AddCh() {
         if (tlen >= tval.size) {
             val newBuf = CharArray(2 * tval.size)
             System.arraycopy(tval, 0, newBuf, 0, tval.size)
@@ -375,7 +375,7 @@ class Scanner {
 
 -->comments
 
-    fun CheckLiteral() {
+    private fun CheckLiteral() {
         var value = t.value
 -->casing3
         val kind = literals[value]
@@ -385,7 +385,7 @@ class Scanner {
     }
 
     @Suppress("UNUSED_VALUE")
-    fun NextToken(): Token {
+    private fun NextToken(): Token {
         while (ch == ' '.toInt() ||
 -->scan1
         ) NextCh()

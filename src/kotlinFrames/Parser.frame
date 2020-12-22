@@ -30,10 +30,10 @@ Coco/R itself) does not fall under the GNU General Public License.
 
 class Parser(scanner: Scanner) {
 
-    companion object {
-        const val _T = true
-        const val _x = false
-        const val minErrDist = 2
+    private companion object {
+        private const val _T = true
+        private const val _x = false
+        private const val minErrDist = 2
         private var _set: Array<BooleanArray>? = null
         private val set get() = _set!!
 -->constants
@@ -42,11 +42,11 @@ class Parser(scanner: Scanner) {
 
     var t = Token() // last recognized token
     var la = Token() // lookahead token
-    var errDist = minErrDist
+    private var errDist = minErrDist
     var scanner: Scanner
     internal var errors = Errors()
 
-    fun SynErr(n: Int) {
+    private fun SynErr(n: Int) {
         if (errDist >= minErrDist) errors.SynErr(la.line, la.col, n)
         errDist = 0
     }
@@ -56,7 +56,7 @@ class Parser(scanner: Scanner) {
         errDist = 0
     }
 
-    fun Get() {
+    private fun Get() {
         while (true) {
             t = la
             la = scanner.Scan()
@@ -69,24 +69,24 @@ class Parser(scanner: Scanner) {
         }
     }
 
-    fun Expect(n: Int) {
+    private fun Expect(n: Int) {
         if (la.kind == n) Get() else {
             SynErr(n)
         }
     }
 
-    fun StartOf(s: Int): Boolean {
+    private fun StartOf(s: Int): Boolean {
         return set[s][la.kind]
     }
 
-    fun ExpectWeak(n: Int, follow: Int) {
+    private fun ExpectWeak(n: Int, follow: Int) {
         if (la.kind == n) Get() else {
             SynErr(n)
             while (!StartOf(follow)) Get()
         }
     }
 
-    fun WeakSeparator(n: Int, syFol: Int, repFol: Int): Boolean {
+    private fun WeakSeparator(n: Int, syFol: Int, repFol: Int): Boolean {
         var kind: Int = la.kind
         return if (kind == n) {
             Get()
@@ -123,7 +123,7 @@ class Parser(scanner: Scanner) {
 
 internal class Errors {
     var count = 0 // number of errors detected
-    var errorStream = System.out // error messages go to this stream
+    var errorStream: java.io.PrintStream = System.out // error messages go to this stream
     var errMsgFormat = "-- line {0} col {1}: {2}" // 0=line, 1=column, 2=text
     protected fun printMsg(line: Int, column: Int, msg: String?) {
         val b = StringBuffer(errMsgFormat)

@@ -331,7 +331,7 @@ public class ParserGen {
       Symbol sym = (Symbol)tab.terminals.get(i);
       if (Character.isLetter(sym.name.charAt(0)))
         if(generateKotlinCode)
-          gen.println("\tpublic const val _" + sym.name + ": Int = " + sym.n);
+          gen.println("\t\tpublic const val _" + sym.name + ": Int = " + sym.n);
         else
           gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
     }
@@ -341,7 +341,7 @@ public class ParserGen {
     for (int i = 0; i < tab.pragmas.size(); i++) {
       Symbol sym = (Symbol)tab.pragmas.get(i);
       if(generateKotlinCode)
-        gen.println("\tpublic const val _" + sym.name + ": Int = " + sym.n);
+        gen.println("\t\tpublic const val _" + sym.name + ": Int = " + sym.n);
       else
         gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
     }
@@ -363,7 +363,7 @@ public class ParserGen {
       Symbol sym = (Symbol)tab.nonterminals.get(i);
       curSy = sym;
       gen.print("\t");
-      if(generateKotlinCode) gen.print("fun ");
+      if(generateKotlinCode) gen.print("private fun ");
       else if (sym.retType == null) gen.print("void "); else gen.print(sym.retType + " ");
       gen.print(sym.name + "(");
       CopySourcePart(sym.attrPos, 0);
@@ -433,7 +433,7 @@ public class ParserGen {
     g.CopyFramePart("-->constants");
     GenTokens();
     if(generateKotlinCode)
-      gen.println("\tpublic const val maxT: Int = " + (tab.terminals.size()-1));
+      gen.println("\t\tpublic const val maxT: Int = " + (tab.terminals.size()-1));
     else
       gen.println("\tpublic static final int maxT = " + (tab.terminals.size()-1) + ";");
     GenPragmas();
