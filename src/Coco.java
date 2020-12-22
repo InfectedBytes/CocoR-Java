@@ -4,6 +4,7 @@ Copyright (c) 1990, 2004 Hanspeter Moessenboeck, University of Linz
 extended by M. Loeberbauer & A. Woess, Univ. of Linz
 ported from C# to Java by Wolfgang Ahorner
 with improvements by Pat Terry, Rhodes University
+with additional support for Kotlin by Henrik Heine
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -50,12 +51,14 @@ public class Coco {
   public static void main (String[] arg) {
     System.out.println("Coco/R (Apr 15, 2013)");
     String srcName = null, nsName = null, frameDir = null, ddtString = null, outDir = null;
+    boolean generateKotlinCode = false;
     int retVal = 1;
     for (int i = 0; i < arg.length; i++) {
       if (arg[i].equals("-package") && i < arg.length - 1) nsName = arg[++i].trim();
       else if (arg[i].equals("-frames") && i < arg.length - 1) frameDir = arg[++i].trim();
       else if (arg[i].equals("-trace") && i < arg.length - 1) ddtString = arg[++i].trim();
       else if (arg[i].equals("-o") && i < arg.length - 1) outDir = arg[++i].trim();
+      else if (arg[i].equals("-kotlin")) generateKotlinCode = true;
       else srcName = arg[i];
     }
     if (arg.length > 0 && srcName != null) {
@@ -67,8 +70,8 @@ public class Coco {
 
         parser.trace = new Trace(srcDir);
         parser.tab = new Tab(parser);
-        parser.dfa = new DFA(parser);
-        parser.pgen = new ParserGen(parser);
+        parser.dfa = new DFA(parser, generateKotlinCode);
+        parser.pgen = new ParserGen(parser, generateKotlinCode);
 
         parser.tab.srcName = srcName;
         parser.tab.srcDir = srcDir;
@@ -93,6 +96,7 @@ public class Coco {
         "  -frames  <frameFilesDirectory>\n" +
         "  -trace   <traceString>\n" +
         "  -o       <outputDirectory>\n" +
+        "  -kotlin" +
         "Valid characters in the trace string:\n" +
         "  A  trace automaton\n" +
         "  F  list first/follow sets\n" +

@@ -5,6 +5,7 @@ Copyright (c) 1990, 2004 Hanspeter Moessenboeck, University of Linz
 extended by M. Loeberbauer & A. Woess, Univ. of Linz
 ported from C# to Java by Wolfgang Ahorner
 with improvements by Pat Terry, Rhodes University
+with additional support for Kotlin by Henrik Heine
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -411,6 +412,7 @@ public class DFA {
   private PrintWriter gen;      // generated scanner file  /* pdt */
   private Symbol curSy;         // current token to be recognized (in FindTrans)
   private boolean dirtyDFA;     // DFA may become nondeterministic in MatchLiteral
+  private final boolean generateKotlinCode;
 
   private Tab tab;             // other Coco objects
   private Parser parser;
@@ -422,19 +424,28 @@ public class DFA {
     if (ch < ' ' || ch >= 127 || ch == '\'' || ch == '\\') {
       return Integer.toString((int)ch);
     }
-    else return "'" + ch + "'";
+    else return "'" + ch + "'" + (generateKotlinCode ? ".toInt()" : "");
   }
 
   private String ChCond(char ch) {
-    return ("ch == " + Ch(ch));
+    return "ch == " + Ch(ch);
   }
 
   private void PutRange(CharSet s) {
-    for (CharSet.Range r = s.head; r != null; r = r.next) {
-      if (r.from == r.to) { gen.print("ch == " + Ch((char) r.from)); }
-      else if (r.from == 0) { gen.print("ch <= " + Ch((char) r.to)); }
-      else { gen.print("ch >= " + Ch((char) r.from) + " && ch <= " + Ch((char) r.to)); }
-      if (r.next != null) gen.print(" || ");
+    if(generateKotlinCode) {
+      for (CharSet.Range r = s.head; r != null; r = r.next) {
+        if (r.from == r.to) { gen.print("ch == " + Ch((char) r.from)); }
+        else if (r.from == 0) { gen.print("ch <= " + Ch((char) r.to)); }
+        else { gen.print("ch in " + Ch((char) r.from)  + ".." + Ch((char) r.to)); }
+        if (r.next != null) gen.print(" || ");
+      }
+    } else {
+      for (CharSet.Range r = s.head; r != null; r = r.next) {
+        if (r.from == r.to) { gen.print("ch == " + Ch((char) r.from)); }
+        else if (r.from == 0) { gen.print("ch <= " + Ch((char) r.to)); }
+        else { gen.print("ch >= " + Ch((char) r.from) + " && ch <= " + Ch((char) r.to)); }
+        if (r.next != null) gen.print(" || ");
+      }
     }
   }
 
@@ -869,7 +880,7 @@ public class DFA {
   //--------------------- scanner generation ------------------------
 
   void GenComBody(Comment com) {
-    gen.println("\t\t\tfor(;;) {");
+    gen.println("\t\t\twhile(true) {");
     gen.print  ("\t\t\t\tif (" + ChCond(com.stop.charAt(0)) + ") "); gen.println("{");
     if (com.stop.length() == 1) {
       gen.println("\t\t\t\t\tlevel--;");
@@ -901,8 +912,13 @@ public class DFA {
 
   void GenComment(Comment com, int i) {
     gen.println();
-    gen.print  ("\tboolean Comment" + i + "() "); gen.println("{");
-    gen.println("\t\tint level = 1, pos0 = pos, line0 = line, col0 = col, charPos0 = charPos;");
+    if(generateKotlinCode) {
+      gen.print  ("\tfun Comment" + i + "(): Boolean "); gen.println("{");
+      gen.println("\t\tvar level = 1; val pos0 = pos; val line0 = line; val col0 = col; val charPos0 = charPos");
+    } else {
+      gen.print  ("\tboolean Comment" + i + "() "); gen.println("{");
+      gen.println("\t\tint level = 1, pos0 = pos, line0 = line, col0 = col, charPos0 = charPos;");
+    }
     if (com.start.length() == 1) {
       gen.println("\t\tNextCh();");
       GenComBody(com);
@@ -941,7 +957,10 @@ public class DFA {
           String name = SymName(sym);
           if (ignoreCase) name = name.toLowerCase();
           // sym.name stores literals with quotes, e.g. "\"Literal\"",
-          gen.println("\t\tliterals.put(" + name + ", new Integer(" + sym.n + "));");
+          if(generateKotlinCode)
+            gen.println("\t\tliterals[" + name + "] = " + sym.n);
+          else
+            gen.println("\t\tliterals.put(" + name + ", new Integer(" + sym.n + "));");
         }
       }
     }
@@ -949,8 +968,12 @@ public class DFA {
 
   void WriteState(State state) {
     Symbol endOf = state.endOf;
-    gen.println("\t\t\t\tcase " + state.nr + ":");
+    if(generateKotlinCode)
+      gen.println("\t\t\t\t" + state.nr + " ->");
+    else
+      gen.println("\t\t\t\tcase " + state.nr + ":");
     if (endOf != null && state.firstAction != null) {
+      if(generateKotlinCode) gen.println("\t\t\t\t{");
       gen.println("\t\t\t\t\trecEnd = pos; recKind = " + endOf.n + ";");
     }
     boolean ctxEnd = state.ctx;
@@ -965,7 +988,9 @@ public class DFA {
       } else if (state.ctx) {
         gen.print("apx = 0; ");
       }
-      gen.println("AddCh(); state = " + action.target.state.nr + "; break;}");
+      gen.print("AddCh(); state = " + action.target.state.nr + ";");
+      if(!generateKotlinCode) gen.print(" break;");
+      gen.println("}");
     }
     if (state.firstAction == null)
       gen.print("\t\t\t\t\t{");
@@ -982,34 +1007,51 @@ public class DFA {
     } else {
       gen.print("t.kind = " + endOf.n + "; ");
       if (endOf.tokenKind == Symbol.classLitToken) {
-        gen.println("t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}");
+        if(generateKotlinCode)
+          gen.println("t.value = String(tval, 0, tlen); CheckLiteral(); return t;}");
+        else
+          gen.println("t.val = new String(tval, 0, tlen); CheckLiteral(); return t;}");
       } else {
-        gen.println("break loop;}");
+        if(generateKotlinCode)
+          gen.println("break@loop;}");
+        else
+          gen.println("break loop;}");
       }
     }
+    if (endOf != null && state.firstAction != null && generateKotlinCode) gen.println("\t\t\t\t}");
   }
 
   void WriteStartTab() {
     for (Action action = firstState.firstAction; action != null; action = action.next) {
       int targetState = action.target.state.nr;
       if (action.typ == Node.chr) {
-        gen.println("\t\tstart.set(" + action.sym + ", " + targetState + "); ");
+        if(generateKotlinCode)
+          gen.println("\t\tstart[" + action.sym + "] = " + targetState);
+        else
+          gen.println("\t\tstart.set(" + action.sym + ", " + targetState + "); ");
       } else {
         CharSet s = tab.CharClassSet(action.sym);
         for (CharSet.Range r = s.head; r != null; r = r.next) {
-          gen.println("\t\tfor (int i = " + r.from + "; i <= " + r.to + "; ++i) start.set(i, " + targetState + ");");
+          if(generateKotlinCode)
+            gen.println("\t\tfor (i in " + r.from + ".." + r.to + ") start[i] = " + targetState);
+          else
+            gen.println("\t\tfor (int i = " + r.from + "; i <= " + r.to + "; ++i) start.set(i, " + targetState + ");");
         }
       }
     }
-    gen.println("\t\tstart.set(Buffer.EOF, -1);");
+    if(generateKotlinCode)
+      gen.println("\t\tstart[Buffer.EOF] = -1");
+    else
+      gen.println("\t\tstart.set(Buffer.EOF, -1);");
   }
 
   public void WriteScanner() {
     Generator g = new Generator(tab);
     fram = g.OpenFrame("Scanner.frame");
-    gen = g.OpenGen("Scanner.java");
+    gen = g.OpenGen(generateKotlinCode ? "Scanner.kt" : "Scanner.java");
     if (dirtyDFA) MakeDeterministic();
 
+    if(generateKotlinCode) gen.println("@file:Suppress(\"RedundantSemicolon\", \"FunctionName\", \"unused\", \"SpellCheckingInspection\", \"RedundantVisibilityModifier\")");
     g.GenCopyright();
     g.SkipFramePart("-->begin");
 
@@ -1020,22 +1062,34 @@ public class DFA {
       gen.println(";");
     }
     g.CopyFramePart("-->declarations");
-    gen.println("\tstatic final int maxT = " + (tab.terminals.size() - 1) + ";");
-    gen.println("\tstatic final int noSym = " + tab.noSym.n + ";");
-    if (ignoreCase)
-      gen.print("\tchar valCh;       // current input character (for token.val)");
+    if(generateKotlinCode) {
+      if (ignoreCase)
+        gen.print("\tvar valCh: Char = '\0';       // current input character (for token.val)");
+      g.CopyFramePart("-->companion");
+      gen.println("\t\tconst val maxT: Int = " + (tab.terminals.size() - 1) + ";");
+      gen.println("\t\tconst val noSym: Int = " + tab.noSym.n + ";");
+    } else {
+      gen.println("\tstatic final int maxT = " + (tab.terminals.size() - 1) + ";");
+      gen.println("\tstatic final int noSym = " + tab.noSym.n + ";");
+      if (ignoreCase)
+        gen.print("\tchar valCh;       // current input character (for token.val)");
+    }
     g.CopyFramePart("-->initialization");
     WriteStartTab();
     GenLiterals();
     g.CopyFramePart("-->casing");
     if (ignoreCase) {
       gen.println("\t\tif (ch != Buffer.EOF) {");
-      gen.println("\t\t\tvalCh = (char) ch;");
+      if(generateKotlinCode)
+        gen.println("\t\t\tvalCh = ch.toChar()");
+      else
+        gen.println("\t\t\tvalCh = (char) ch;");
       gen.println("\t\t\tch = Character.toLowerCase(ch);");
       gen.println("\t\t}");
     }
     g.CopyFramePart("-->casing2");
     if (ignoreCase) gen.println("\t\t\ttval[tlen++] = valCh; ");
+    else if(generateKotlinCode) gen.println("\t\t\ttval[tlen++] = ch.toChar()");
     else gen.println("\t\t\ttval[tlen++] = (char)ch; ");
     g.CopyFramePart("-->comments");
     Comment com = firstComment;
@@ -1046,6 +1100,9 @@ public class DFA {
     }
     g.CopyFramePart("-->casing3");
     if (ignoreCase) {
+      if(generateKotlinCode)
+        gen.println("\t\tvalue = value.toLowerCase();");
+      else
         gen.println("\t\tval = val.toLowerCase();");
     }
     g.CopyFramePart("-->scan1");
@@ -1063,7 +1120,13 @@ public class DFA {
       }
       gen.print(") return NextToken();");
     }
-    if (hasCtxMoves) { gen.println(); gen.print("\t\tint apx = 0;"); } /* pdt */
+    if (hasCtxMoves) {
+      gen.println();
+      if(generateKotlinCode)
+        gen.print("\t\tvar apx = 0");
+      else
+        gen.print("\t\tint apx = 0;");
+    } /* pdt */
     g.CopyFramePart("-->scan3");
     for (State state = firstState.next; state != null; state = state.next)
       WriteState(state);
@@ -1071,8 +1134,9 @@ public class DFA {
     gen.close();
   }
 
-  public DFA (Parser parser) {
+  public DFA (Parser parser, final boolean generateKotlinCode) {
     this.parser = parser;
+    this.generateKotlinCode = generateKotlinCode;
     tab = parser.tab;
     errors = parser.errors;
     trace = parser.trace;

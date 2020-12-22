@@ -5,6 +5,7 @@ Copyright (c) 1990, 2004 Hanspeter Moessenboeck, University of Linz
 extended by M. Loeberbauer & A. Woess, Univ. of Linz
 ported from C# to Java by Wolfgang Ahorner
 with improvements by Pat Terry, Rhodes University
+with additional support for Kotlin by Henrik Heine
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -63,6 +64,7 @@ public class ParserGen {
   String srcName;    // name of attributed grammar file
   String srcDir;     // directory of attributed grammar file
   ArrayList symSet = new ArrayList();
+  private final boolean generateKotlinCode;
 
   Tab tab;           // other Coco objects
   Trace trace;
@@ -130,7 +132,10 @@ public class ParserGen {
 
   void GenErrorMsg (int errTyp, Symbol sym) {
     errorNr++;
-    err.write(ls + "\t\t\tcase " + errorNr + ": s = \"");
+    if(generateKotlinCode)
+      err.write(ls + "\t\t\t" + errorNr + " -> \"");
+    else
+      err.write(ls + "\t\t\tcase " + errorNr + ": s = \"");
     switch (errTyp) {
       case tErr:
         if (sym.name.charAt(0) == '"') err.write(tab.Escape(sym.name) + " expected");
@@ -139,7 +144,10 @@ public class ParserGen {
       case altErr: err.write("invalid " + sym.name); break;
       case syncErr: err.write("this symbol not expected in " + sym.name); break;
     }
-    err.write("\"; break;");
+    if(generateKotlinCode)
+      err.write('"');
+    else
+      err.write("\"; break;");
   }
 
   int NewCondSet (BitSet s) {
@@ -171,7 +179,12 @@ public class ParserGen {
   void PutCaseLabels (BitSet s) {
     for (int i = 0; i < tab.terminals.size(); i++) {
       Symbol sym = (Symbol)tab.terminals.get(i);
-      if (s.get(sym.n)) gen.print("case " + sym.n + ": ");
+      if (s.get(sym.n)) {
+        if(generateKotlinCode)
+          gen.print(sym.n + " -> ");
+        else
+          gen.print("case " + sym.n + ": ");
+      }
     }
   }
 
@@ -234,7 +247,13 @@ public class ParserGen {
           s1 = tab.First(p);
           boolean equal = Sets.Equals(s1, isChecked);
           boolean useSwitch = UseSwitch(p);
-          if (useSwitch) { Indent(indent); gen.println("switch (la.kind) {"); }
+          if (useSwitch) {
+            Indent(indent);
+            if(generateKotlinCode)
+              gen.println("when(la.kind) {");
+            else
+              gen.println("switch (la.kind) {");
+          }
           p2 = p;
           while (p2 != null) {
             s1 = tab.Expected(p2.sub, curSy);
@@ -249,7 +268,7 @@ public class ParserGen {
             }
             GenCode(p2.sub, indent + 1, s1);
             if (useSwitch) {
-              Indent(indent); gen.println("\tbreak;");
+              if(!generateKotlinCode) { Indent(indent); gen.println("\tbreak;"); }
               Indent(indent); gen.println("}");
             }
             p2 = p2.down;
@@ -260,7 +279,10 @@ public class ParserGen {
           } else {
             GenErrorMsg(altErr, curSy);
             if (useSwitch) {
-              gen.println("default: SynErr(" + errorNr + "); break;");
+              if(generateKotlinCode)
+                gen.println("else -> SynErr(" + errorNr + ")");
+              else
+                gen.println("default: SynErr(" + errorNr + "); break;");
               Indent(indent); gen.println("}");
             } else {
               gen.print("} "); gen.println("else SynErr(" + errorNr + ");");
@@ -308,14 +330,20 @@ public class ParserGen {
     for (int i = 0; i < tab.terminals.size(); i++) {
       Symbol sym = (Symbol)tab.terminals.get(i);
       if (Character.isLetter(sym.name.charAt(0)))
-        gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
+        if(generateKotlinCode)
+          gen.println("\tpublic const val _" + sym.name + ": Int = " + sym.n);
+        else
+          gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
     }
   }
 
   void GenPragmas() {
     for (int i = 0; i < tab.pragmas.size(); i++) {
       Symbol sym = (Symbol)tab.pragmas.get(i);
-      gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
+      if(generateKotlinCode)
+        gen.println("\tpublic const val _" + sym.name + ": Int = " + sym.n);
+      else
+        gen.println("\tpublic static final int _" + sym.name + " = " + sym.n + ";");
     }
   }
 
@@ -335,11 +363,20 @@ public class ParserGen {
       Symbol sym = (Symbol)tab.nonterminals.get(i);
       curSy = sym;
       gen.print("\t");
-      if (sym.retType == null) gen.print("void "); else gen.print(sym.retType + " ");
+      if(generateKotlinCode) gen.print("fun ");
+      else if (sym.retType == null) gen.print("void "); else gen.print(sym.retType + " ");
       gen.print(sym.name + "(");
       CopySourcePart(sym.attrPos, 0);
-      gen.println(") {");
-      if (sym.retVar != null) gen.println("\t\t" + sym.retType + " " + sym.retVar + ";");
+      if(generateKotlinCode && sym.retType != null)
+        gen.println("): " + sym.retType + " {");
+      else
+        gen.println(") {");
+      if (sym.retVar != null) {
+        if(generateKotlinCode)
+          gen.println("\t\tvar " + sym.retVar + ": " + sym.retType);
+        else
+          gen.println("\t\t" + sym.retType + " " + sym.retVar + ";");
+      }
       CopySourcePart(sym.semPos, 2);
       GenCode(sym.graph, 2, new BitSet(tab.terminals.size()));
       if (sym.retVar != null) gen.println("\t\treturn " + sym.retVar + ";");
@@ -350,7 +387,7 @@ public class ParserGen {
   void InitSets() {
     for (int i = 0; i < symSet.size(); i++) {
       BitSet s = (BitSet)symSet.get(i);
-      gen.print("\t\t{");
+      gen.print(generateKotlinCode ? "\t\tbooleanArrayOf(" : "\t\t{");
       int j = 0;
       //foreach (Symbol sym in Symbol.terminals) {
       for (int k = 0; k < tab.terminals.size(); k++) {
@@ -359,7 +396,8 @@ public class ParserGen {
         ++j;
         if (j%4 == 0) gen.print(" ");
       }
-      if (i == symSet.size()-1) gen.println("_x}"); else gen.println("_x},");
+      if (i == symSet.size()-1) gen.println(generateKotlinCode ? "_x)" : "_x}");
+      else gen.println(generateKotlinCode ? "_x)," : "_x},");
     }
   }
 
@@ -369,7 +407,7 @@ public class ParserGen {
     symSet.add(tab.allSyncSets);
 
     fram = g.OpenFrame("Parser.frame");
-    gen = g.OpenGen("Parser.java");
+    gen = g.OpenGen(generateKotlinCode ? "Parser.kt" : "Parser.java");
     err = new StringWriter();
     //foreach (Symbol sym in Symbol.terminals)
     for (int i = 0; i < tab.terminals.size(); i++) {
@@ -379,6 +417,7 @@ public class ParserGen {
 
     OnWriteParserInitializationDone();
 
+    if(generateKotlinCode) gen.println("@file:Suppress(\"RedundantSemicolon\", \"FunctionName\", \"unused\", \"SpellCheckingInspection\", \"RedundantVisibilityModifier\", \"ObjectPropertyName\")");
     g.GenCopyright();
     g.SkipFramePart("-->begin");
 
@@ -393,7 +432,10 @@ public class ParserGen {
     }
     g.CopyFramePart("-->constants");
     GenTokens();
-    gen.println("\tpublic static final int maxT = " + (tab.terminals.size()-1) + ";");
+    if(generateKotlinCode)
+      gen.println("\tpublic const val maxT: Int = " + (tab.terminals.size()-1));
+    else
+      gen.println("\tpublic static final int maxT = " + (tab.terminals.size()-1) + ";");
     GenPragmas();
     g.CopyFramePart("-->declarations"); CopySourcePart(tab.semDeclPos, 0);
     g.CopyFramePart("-->pragmas"); GenCodePragmas();
@@ -422,13 +464,14 @@ public class ParserGen {
     trace.WriteLine(symSet.size() + " sets");
   }
 
-  public ParserGen (Parser parser) {
+  public ParserGen (Parser parser, final boolean generateKotlinCode) {
     tab = parser.tab;
     errors = parser.errors;
     trace = parser.trace;
     buffer = parser.scanner.buffer;
     errorNr = -1;
     usingPos = null;
+    this.generateKotlinCode = generateKotlinCode;
   }
 
 }
