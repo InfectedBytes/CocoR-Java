@@ -124,22 +124,9 @@ class Parser(scanner: Scanner) {
 internal class Errors {
     var count = 0 // number of errors detected
     var errorStream: java.io.PrintStream = System.out // error messages go to this stream
-    var errMsgFormat = "-- line {0} col {1}: {2}" // 0=line, 1=column, 2=text
+    var errMsgFormat = "-- line %1\$d col %2\$d: %3\$s\n" // 1=line, 2=column, 3=text
     protected fun printMsg(line: Int, column: Int, msg: String?) {
-        val b = StringBuffer(errMsgFormat)
-        var pos = b.indexOf("{0}")
-        if (pos >= 0) {
-            b.delete(pos, pos + 3)
-            b.insert(pos, line)
-        }
-        pos = b.indexOf("{1}")
-        if (pos >= 0) {
-            b.delete(pos, pos + 3)
-            b.insert(pos, column)
-        }
-        pos = b.indexOf("{2}")
-        if (pos >= 0) b.replace(pos, pos + 3, msg)
-        errorStream.println(b.toString())
+        errorStream.printf(errMsgFormat, line, column, msg)
     }
 
     fun SynErr(line: Int, col: Int, n: Int) {

@@ -1080,11 +1080,13 @@ public class DFA {
     g.CopyFramePart("-->casing");
     if (ignoreCase) {
       gen.println("\t\tif (ch != Buffer.EOF) {");
-      if(generateKotlinCode)
+      if(generateKotlinCode) {
         gen.println("\t\t\tvalCh = ch.toChar()");
-      else
+        gen.println("\t\t\tch = ch.toChar().toLowerCase().toInt()");
+      } else {
         gen.println("\t\t\tvalCh = (char) ch;");
-      gen.println("\t\t\tch = Character.toLowerCase(ch);");
+        gen.println("\t\t\tch = Character.toLowerCase(ch);");
+      }
       gen.println("\t\t}");
     }
     g.CopyFramePart("-->casing2");

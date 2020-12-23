@@ -185,7 +185,7 @@ open class Buffer {
             // foresee the maximum length, thus we must adapt
             // the buffer size on demand.
             val newBuf = ByteArray(bufLen * 2)
-            System.arraycopy(buf, 0, newBuf, 0, bufLen)
+            buf.copyInto(newBuf)
             buf = newBuf
             free = bufLen
         }
@@ -209,7 +209,7 @@ open class Buffer {
         //    a) whole stream in buffer
         //    b) part of stream in buffer
         // 2) non seekable stream (network, console)
-        const val EOF = Character.MAX_VALUE.toInt() + 1
+        const val EOF = Char.MAX_VALUE.toInt() + 1
         private const val MIN_BUFFER_LENGTH = 1024 // 1KB
         private const val MAX_BUFFER_LENGTH = MIN_BUFFER_LENGTH * 64 // 64KB
     }
@@ -364,7 +364,7 @@ class Scanner {
     private fun AddCh() {
         if (tlen >= tval.size) {
             val newBuf = CharArray(2 * tval.size)
-            System.arraycopy(tval, 0, newBuf, 0, tval.size)
+            tval.copyInto(newBuf)
             tval = newBuf
         }
         if (ch != Buffer.EOF) {
